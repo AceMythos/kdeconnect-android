@@ -56,7 +56,7 @@ class ConnectivityReportPlugin : Plugin() {
             states.forEach { (subID: Int, subscriptionState: SubscriptionState) ->
                 try {
                     val subInfo = JSONObject()
-                    subInfo.put("networkType", subscriptionState.networkType)
+                    subInfo.put("networkType", networkTypeWithBand(subscriptionState))
                     subInfo.put("signalStrength", subscriptionState.signalStrength)
                     signalStrengths.put(subID.toString(), subInfo)
                 } catch (e: JSONException) {
@@ -84,7 +84,30 @@ class ConnectivityReportPlugin : Plugin() {
 
     override val outgoingPacketTypes: Array<String> = arrayOf(PACKET_TYPE_CONNECTIVITY_REPORT)
 
-    override val requiredPermissions: Array<String> = arrayOf(Manifest.permission.READ_PHONE_STATE)
+    // ACCESS_FINE_LOCATION is required on top of READ_PHONE_STATE for
+    // TelephonyCallback.CellInfoListener, which is where the NR band comes from.
+    override val requiredPermissions: Array<String> = arrayOf(
+        Manifest.permission.READ_PHONE_STATE,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+    )
+
+    /**
+     * Append the SA/NSA label and band to the network type.
+     *
+     * The desktop passes networkType straight through as a QString, so encoding
+     * the band here avoids needing any change to the KDE Connect desktop side.
+     * "5G" becomes "5G SA n78", "LTE" becomes "LTE B40", and so on. The bare
+     * network type is kept when neither is known, so the format degrades
+     * gracefully rather than breaking existing consumers.
+     */
+    private fun networkTypeWithBand(state: SubscriptionState): String {
+        val parts = listOfNotNull(
+            state.networkType.takeIf { it.isNotEmpty() },
+            state.standalone.takeIf { it.isNotEmpty() },
+            state.band.takeIf { it.isNotEmpty() },
+        )
+        return parts.joinToString(" ").ifEmpty { "Unknown" }
+    }
 
     companion object {
         private const val PACKET_TYPE_CONNECTIVITY_REPORT = "kdeconnect.connectivity_report"
