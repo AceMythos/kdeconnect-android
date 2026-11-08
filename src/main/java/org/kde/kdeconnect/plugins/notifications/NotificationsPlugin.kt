@@ -186,9 +186,7 @@ class NotificationsPlugin : Plugin(), NotificationReceiver.NotificationListener 
     ) {
         val notification = statusBarNotification.notification
 
-        if ((notification.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0
-            || (notification.flags and Notification.FLAG_ONGOING_EVENT) != 0
-            || (notification.flags and Notification.FLAG_LOCAL_ONLY) != 0
+        if ((notification.flags and Notification.FLAG_LOCAL_ONLY) != 0
             || (notification.flags and NotificationCompat.FLAG_GROUP_SUMMARY) != 0 // The notification that groups other notifications
         ) {
             // This is not a notification we want
@@ -248,6 +246,9 @@ class NotificationsPlugin : Plugin(), NotificationReceiver.NotificationListener 
         val isGroupConversation = isConversation && messagingStyle.isGroupConversation() && messagingStyle.conversationTitle != null
 
         np["actions"] = extractActions(notification, key)
+        // Ongoing/foreground notifications are the source of live activities
+        // (timers, calls, navigation). The desktop side decides how to pin them.
+        np["ongoing"] = (notification.flags and (Notification.FLAG_ONGOING_EVENT or Notification.FLAG_FOREGROUND_SERVICE)) != 0
 
         np["id"] = key
         np["isClearable"] = statusBarNotification.isClearable

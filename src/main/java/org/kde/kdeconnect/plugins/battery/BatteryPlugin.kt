@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import android.os.Build
 import androidx.annotation.VisibleForTesting
 import org.kde.kdeconnect.NetworkPacket
 import org.kde.kdeconnect.plugins.Plugin
@@ -69,13 +70,37 @@ class BatteryPlugin : Plugin() {
             val currentCharge = level * 100 / scale
             val isCharging = 0 != plugged
 
-            if (isCharging != batteryInfo.getBoolean("isCharging") || currentCharge != batteryInfo.getInt("currentCharge") || thresholdEvent != batteryInfo.getInt(
-                    "thresholdEvent"
-                )
+            // Additive telemetry understood by the patched desktop daemon. Older
+            // peers ignore unknown keys, so the battery protocol stays compatible.
+            val temperature = batteryIntent.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+            val status = batteryIntent.getIntExtra(BatteryManager.EXTRA_STATUS, BatteryManager.BATTERY_STATUS_UNKNOWN)
+            val health = batteryIntent.getIntExtra(BatteryManager.EXTRA_HEALTH, BatteryManager.BATTERY_HEALTH_UNKNOWN)
+            val technology = batteryIntent.getStringExtra(BatteryManager.EXTRA_TECHNOLOGY).orEmpty()
+            val cycleCount = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                batteryIntent.getIntExtra(BatteryManager.EXTRA_CYCLE_COUNT, -1)
+            } else {
+                -1
+            }
+
+            if (isCharging != batteryInfo.getBoolean("isCharging")
+                || currentCharge != batteryInfo.getInt("currentCharge")
+                || thresholdEvent != batteryInfo.getInt("thresholdEvent")
+                || plugged != batteryInfo.getInt("plugged", -1)
+                || temperature != batteryInfo.getInt("temperature", Int.MIN_VALUE)
+                || status != batteryInfo.getInt("status", -1)
+                || health != batteryInfo.getInt("health", -1)
+                || technology != batteryInfo.getString("technology")
+                || cycleCount != batteryInfo.getInt("cycleCount", -1)
             ) {
                 batteryInfo["currentCharge"] = currentCharge
                 batteryInfo["isCharging"] = isCharging
                 batteryInfo["thresholdEvent"] = thresholdEvent
+                batteryInfo["plugged"] = plugged
+                batteryInfo["temperature"] = temperature
+                batteryInfo["status"] = status
+                batteryInfo["health"] = health
+                batteryInfo["technology"] = technology
+                batteryInfo["cycleCount"] = cycleCount
                 device.sendPacket(batteryInfo)
 
                 // We just send a possible threshold event so reset it so we not create notifications on each change
